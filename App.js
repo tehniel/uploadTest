@@ -4,6 +4,7 @@ import { Button, StyleSheet, Text, View } from 'react-native';
 import { Audio, Permissions } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios'; // Import axios for API requests
+import RNFS from 'react-native-fs';
 
 const App = () => {
   const [recording, setRecording] = React.useState(null);
@@ -27,23 +28,15 @@ const App = () => {
 
   const uploadAudioToAssemblyAI = async (apiKey, audioPath) => {
     try {
-      // Check if the file exists
-      const fileInfo = await FileSystem.getInfoAsync(audioPath);
-      if (!fileInfo.exists) {
-        throw new Error('File does not exist.');
-      }
-      console.log(fileInfo)
+      // Read audio file
+      const audioData = await RNFS.readFile(audioPath, 'base64');
+      console.log(audioData)
   
       const baseUrl = 'https://api.assemblyai.com/v2';
       const headers = {
         Authorization: apiKey,
         'Content-Type': 'application/json',
       };
-  
-      // Read audio file
-      const audioData = await FileSystem.readAsStringAsync(audioPath, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
   
       // Upload audio to AssemblyAI API
       const uploadResponse = await axios.post(`${baseUrl}/upload`, audioData, {
