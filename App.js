@@ -25,72 +25,65 @@ const App = () => {
     return () => clearInterval(timer);
   }, [recording]);
 
-  const uploadToAssemblyAI = async (uri) => {
-    // Replace with your actual API key
-    const apiKey = '3d9f55ecbf1342b09862ef48e995d7ef';
-
+  const uploadAudioToAssemblyAI = async (apiKey, audioPath) => {
     try {
-      // 1. Set up API endpoint and headers
+      // Check if the file exists
+      const fileInfo = await FileSystem.getInfoAsync(audioPath);
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist.');
+      }
+      console.log(fileInfo)
+  
       const baseUrl = 'https://api.assemblyai.com/v2';
       const headers = {
-        authorization: '3d9f55ecbf1342b09862ef48e995d7ef',
+        Authorization: apiKey,
+        'Content-Type': 'application/json',
       };
-
-      // 2. Prepare the file data (assuming URI points to a local file)
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const formData = new FormData();
-      formData.append('audio', blob);
-
-      // 3. Upload the file
-      const uploadResponse = await axios.post(`${baseUrl}/upload`, formData, {
+  
+      // Read audio file
+      const audioData = await FileSystem.readAsStringAsync(audioPath, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+  
+      // Upload audio to AssemblyAI API
+      const uploadResponse = await axios.post(`${baseUrl}/upload`, audioData, {
         headers,
       });
-
       const uploadUrl = uploadResponse.data.upload_url;
-
-      console.log(uploadUrl)
-
-      // 4. Prepare payload for transcription request
+  
+      // Create JSON payload containing audio_url
       const data = {
         audio_url: uploadUrl,
       };
-
-      // 5. Send the transcription request
-      const transcriptionResponse = await axios.post(`${baseUrl}/transcript`, data, {
+  
+      // Make a POST request to the AssemblyAI API endpoint
+      const transcriptResponse = await axios.post(`${baseUrl}/transcript`, data, {
         headers,
       });
-
-      const transcriptId = transcriptionResponse.data.id;
-
-      // 6. Poll for the transcription status (not implemented here)
-      console.log(`Transcription started with ID: ${transcriptId}`);
-
-      const pollingEndpoint = `${baseUrl}/transcript/${transcriptId}`
-
+  
+      // Get transcript ID
+      const transcriptId = transcriptResponse.data.id;
+      const pollingEndpoint = `${baseUrl}/transcript/${transcriptId}`;
+  
+      // Poll the API for transcript status
       while (true) {
-        const pollingResponse = await axios.get(pollingEndpoint, {
-          headers: headers
-        })
-        const transcriptionResult = pollingResponse.data
-
+        const pollingResponse = await axios.get(pollingEndpoint, { headers });
+        const transcriptionResult = pollingResponse.data;
+  
         if (transcriptionResult.status === 'completed') {
-          console.log(transcriptionResult.text)
-          break
+          console.log('Transcription completed:', transcriptionResult.text);
+          break;
         } else if (transcriptionResult.status === 'error') {
-          throw new Error(`Transcription failed: ${transcriptionResult.error}`)
+          throw new Error(`Transcription failed: ${transcriptionResult.error}`);
         } else {
-          await new Promise((resolve) => setTimeout(resolve, 3000))
+          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
       }
-
-      // Access the finished transcription through the transcriptionResult variable
-
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error:', error.message);
     }
   };
-
+  
 
   async function startRecording() {
     try {
@@ -133,7 +126,7 @@ const App = () => {
       }
     );
     const uri = recording.getURI();
-    uploadToAssemblyAI(uri)
+    uploadAudioToAssemblyAI('3d9f55ecbf1342b09862ef48e995d7ef','/Users/daniel/Code/EXPO/uploadTest/audio/5_common_sports_injuries.mp3' )
     console.log('Recording stopped and stored at', uri);
   }
 
