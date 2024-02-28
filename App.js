@@ -2,18 +2,12 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { Audio, Permissions } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import axios from 'axios'; // Import axios for API requests
-import RNFS from 'react-native-fs';
+import Axios from 'axios'; // Import axios for API requests
 
 const App = () => {
   const [recording, setRecording] = React.useState(null);
   const [recordings, setRecordings] = React.useState([]);
   const [permissionResponse, requestPermission] = Audio.usePermissions();
-
-  const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2/upload'; // AssemblyAI upload endpoint
-  const ASSEMBLYAI_API_KEY = '3d9f55ecbf1342b09862ef48e995d7ef'; // Replace with your API key
-
 
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -26,57 +20,54 @@ const App = () => {
     return () => clearInterval(timer);
   }, [recording]);
 
-  const uploadAudioToAssemblyAI = async (apiKey, audioPath) => {
-    try {
-      // Read audio file
-      const audioData = await RNFS.readFile(audioPath, 'base64');
-      console.log(audioData)
+  async function uploadFileToAssemblyAI(uri) {
+    // Replace with your actual AssemblyAI API key
+    const apiKey = '3d9f55ecbf1342b09862ef48e995d7ef';
   
-      const baseUrl = 'https://api.assemblyai.com/v2';
-      const headers = {
-        Authorization: apiKey,
-        'Content-Type': 'application/json',
-      };
+    const baseUrl = 'https://api.assemblyai.com/v2';
+
+    //Our Upload Endpoint expects binary format
+    const binaryFileData = await fetch(uri);
+    const fileData = await binaryFileData.arrayBuffer();    
   
-      // Upload audio to AssemblyAI API
-      const uploadResponse = await axios.post(`${baseUrl}/upload`, audioData, {
-        headers,
-      });
-      const uploadUrl = uploadResponse.data.upload_url;
+    // 3. Upload the file data
+    const headers = { authorization: `Bearer ${apiKey}`};
+    
+    const uploadResponse = await Axios.post(`${baseUrl}/upload`, fileData, {
+      headers: {
+        ...headers,
+      },
+    });
   
-      // Create JSON payload containing audio_url
-      const data = {
-        audio_url: uploadUrl,
-      };
+    const uploadUrl = uploadResponse.data.upload_url;
+
+    // 4. Create the payload for transcription request
+    const data = { audio_url: uploadUrl };
   
-      // Make a POST request to the AssemblyAI API endpoint
-      const transcriptResponse = await axios.post(`${baseUrl}/transcript`, data, {
-        headers,
-      });
+    // 5. Send the request for transcription
+    const response = await Axios.post(`${baseUrl}/transcript`, data, { headers });
   
-      // Get transcript ID
-      const transcriptId = transcriptResponse.data.id;
-      const pollingEndpoint = `${baseUrl}/transcript/${transcriptId}`;
+    const transcriptId = response.data.id;
+    console.log(transcriptId)
+    const pollingEndpoint = `${baseUrl}/transcript/${transcriptId}`;
+    console.log(pollingEndpoint)
   
-      // Poll the API for transcript status
-      while (true) {
-        const pollingResponse = await axios.get(pollingEndpoint, { headers });
-        const transcriptionResult = pollingResponse.data;
+    // 6. Poll for transcription status
+    while (true) {
+      const pollingResponse = await Axios.get(pollingEndpoint, { headers });
+      const transcriptionResult = pollingResponse.data;
   
-        if (transcriptionResult.status === 'completed') {
-          console.log('Transcription completed:', transcriptionResult.text);
-          break;
-        } else if (transcriptionResult.status === 'error') {
-          throw new Error(`Transcription failed: ${transcriptionResult.error}`);
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-        }
+      if (transcriptionResult.status === 'completed') {
+        console.log(transcriptionResult.text)
+        return transcriptionResult.text; // Return the transcription
+      } else if (transcriptionResult.status === 'error') {
+        throw new Error(`Transcription failed: ${transcriptionResult.error}`);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3 seconds before polling again
       }
-    } catch (error) {
-      console.error('Error:', error.message);
     }
-  };
-  
+  }
+
 
   async function startRecording() {
     try {
@@ -119,7 +110,7 @@ const App = () => {
       }
     );
     const uri = recording.getURI();
-    uploadAudioToAssemblyAI('3d9f55ecbf1342b09862ef48e995d7ef','/Users/daniel/Code/EXPO/uploadTest/audio/5_common_sports_injuries.mp3' )
+    uploadFileToAssemblyAI(uri)
     console.log('Recording stopped and stored at', uri);
   }
 
@@ -175,4 +166,3 @@ const styles = StyleSheet.create({
 });
 
 export default App;
-
